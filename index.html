@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clustered Map - 17k Pins</title>
+    <style>
+        /* --- Reset & Base --- */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        /* --- Map Container --- */
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* --- Loading Modal --- */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(10, 14, 25, 0.6);
+            backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .modal-card {
+            background: white;
+            color: #1a202c;
+            padding: 32px 40px;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            max-width: 340px;
+        }
+
+        .spinner {
+            margin: 20px auto 0;
+            width: 40px;
+            height: 40px;
+            border: 3px solid #e2e8f0;
+            border-top-color: #3182ce;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* --- Info Sidebar (Left) --- */
+        .info-panel {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            bottom: 20px;
+            width: 400px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+            z-index: 1000;
+            transform: translateX(-120%);
+            transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .info-panel.open {
+            transform: translateX(0);
+        }
+
+        /* Sidebar Header */
+        .panel-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f8fafc;
+        }
+
+        .panel-header h2 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #2d3748;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 24px;
+            color: #a0aec0;
+            line-height: 1;
+            padding: 4px;
+            border-radius: 4px;
+        }
+
+        .close-btn:hover {
+            color: #4a5568;
+            background: #edf2f7;
+        }
+
+        /* Sidebar Content */
+        .panel-content {
+            padding: 0;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        /* Data Table */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        .data-table tr {
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .data-table th {
+            text-align: left;
+            padding: 12px 24px;
+            color: #718096;
+            font-weight: 600;
+            width: 35%;
+            background: #fff;
+        }
+
+        .data-table td {
+            text-align: left;
+            padding: 12px 24px;
+            color: #2d3748;
+            font-weight: 500;
+            word-break: break-word;
+        }
+
+        .data-table tr:hover {
+            background: #f8fafc;
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 600px) {
+            .info-panel {
+                top: auto;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                width: 100%;
+                border-radius: 20px 20px 0 0;
+                height: 60vh;
+                transform: translateY(110%);
+            }
+
+            .info-panel.open {
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Map Container -->
+    <div id="map"></div>
+
+    <!-- Loading Modal -->
+    <div id="loadingModal" class="modal-overlay">
+        <div class="modal-card">
+            <h2 style="font-size: 20px; font-weight: 700;">Loading Map</h2>
+            <p style="color: #718096; margin-top: 8px;">Processing records...</p>
+            <div class="spinner"></div>
+        </div>
+    </div>
+
+    <!-- Left Info Sidebar -->
+    <div id="infoPanel" class="info-panel">
+        <div class="panel-header">
+            <h2>Property Details</h2>
+            <button class="close-btn" onclick="closePanel()">&times;</button>
+        </div>
+        <div class="panel-content">
+            <table class="data-table" id="dataTable">
+                <!-- Content injected by JS -->
+            </table>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCKAHTz4KvsPHmiQpK-5ew5eq17VO7bOxM&v=weekly"></script>
+    <script src="https://unpkg.com/deck.gl@9.0.0/dist.min.js"></script>
+    <script src="https://unpkg.com/@deck.gl/google-maps@9.0.0/dist.min.js"></script>
+    <script src="https://d3js.org/d3-dsv.v3.min.js"></script>
+    <script src="https://d3js.org/d3-fetch.v3.min.js"></script>
+    <script src="https://unpkg.com/supercluster@8.0.1/dist/supercluster.min.js"></script>
+
+    <script>
+        // --- Configuration ---
+        const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRvHkNlC17wV18gPKJzUjO_nzhSntcJPUQ9iAV6RTlgvI9dnjTx3w7hlWxY2T5rxms-4ZQ248U5d_yu/pub?output=csv';
+
+        // Colors
+        const CLUSTER_COLOR = [49, 130, 206]; // Blue
+        const POINT_COLOR = [229, 62, 62];    // Red
+
+        // --- State ---
+        let map, overlay, supercluster;
+        let allPoints = [];
+
+        // --- UI Functions ---
+        function closePanel() {
+            document.getElementById('infoPanel').classList.remove('open');
+        }
+
+        function showPointDetails(props) {
+            const tbody = document.getElementById('dataTable');
+            tbody.innerHTML = ''; // Clear previous
+
+            // Iterate over all CSV columns
+            Object.entries(props).forEach(([key, value]) => {
+                // Skip internal properties if any
+                if (key === 'id' && value.startsWith('row-')) return;
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <th>${formatKey(key)}</th>
+                    <td>${value || '-'}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            document.getElementById('infoPanel').classList.add('open');
+        }
+
+        // Helper to make CSV headers look nice (e.g. "price_eur" -> "Price Eur")
+        function formatKey(str) {
+            return str.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        }
+
+        // --- Data Logic ---
+        function parseCoord(val) {
+            if (!val) return NaN;
+            return parseFloat(String(val).replace(',', '.'));
+        }
+
+        async function loadData() {
+            try {
+                const data = await d3.csv(CSV_URL);
+
+                allPoints = data.map((row, i) => {
+                    const lat = parseCoord(row.latitude || row.lat || row.Latitude);
+                    const lng = parseCoord(row.logitude || row.longitude || row.lng || row.Longitude);
+
+                    if (!isFinite(lat) || !isFinite(lng)) return null;
+
+                    return {
+                        type: 'Feature',
+                        properties: { ...row }, // Copy all CSV columns
+                        geometry: { type: 'Point', coordinates: [lng, lat] }
+                    };
+                }).filter(Boolean);
+
+                // Initialize Supercluster
+                supercluster = new Supercluster({
+                    radius: 60, // Cluster radius in pixels
+                    maxZoom: 18
+                });
+                supercluster.load(allPoints);
+
+                document.getElementById('loadingModal').classList.add('hidden');
+                updateMap();
+
+            } catch (err) {
+                console.error(err);
+                alert("Failed to load CSV data. Check console.");
+            }
+        }
+
+        // --- Map & Deck.gl Logic ---
+        function initMap() {
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: { lat: 38.28362060944916, lng: -99.25592016317214 },
+                zoom: 5,
+                disableDefaultUI: true,
+                clickableIcons: false,
+                styles: [{ featureType: "poi", stylers: [{ visibility: "off" }] }]
+            });
+
+            overlay = new deck.GoogleMapsOverlay({
+                useDevicePixels: true,
+                pickingRadius: 5
+            });
+            overlay.setMap(map);
+
+            map.addListener('idle', updateMap);
+            loadData();
+        }
+
+        function updateMap() {
+            if (!supercluster || !map) return;
+
+            const bounds = map.getBounds();
+            if (!bounds) return;
+
+            // Get current bbox and zoom
+            const sw = bounds.getSouthWest();
+            const ne = bounds.getNorthEast();
+            const bbox = [sw.lng(), sw.lat(), ne.lng(), ne.lat()];
+            const zoom = Math.round(map.getZoom());
+
+            // Get clusters from Supercluster
+            const clusters = supercluster.getClusters(bbox, zoom);
+
+            // Split into clusters vs single points
+            const clusterData = clusters.filter(f => f.properties.cluster);
+            const pointData = clusters.filter(f => !f.properties.cluster);
+
+            const layers = [
+                // 1. Clusters Layer (Fixed 40px Size)
+                new deck.ScatterplotLayer({
+                    id: 'clusters',
+                    data: clusterData,
+                    getPosition: d => d.geometry.coordinates,
+                    // Fixed radius 20px = 40px diameter
+                    getRadius: 20,
+                    radiusUnits: 'pixels',
+                    getFillColor: CLUSTER_COLOR,
+                    getLineColor: [255, 255, 255],
+                    getLineWidth: 3,
+                    lineWidthUnits: 'pixels',
+                    pickable: true,
+                    // HOVER EFFECT ADDED HERE
+                    onHover: ({ object }) => {
+                        map.setOptions({ draggableCursor: object ? 'pointer' : null });
+                    },
+                    onClick: ({ object }) => {
+                        const expansionZoom = supercluster.getClusterExpansionZoom(object.properties.cluster_id);
+                        const [lng, lat] = object.geometry.coordinates;
+                        map.panTo({ lat, lng });
+                        map.setZoom(expansionZoom);
+                        closePanel(); // Close details if zooming a cluster
+                    }
+                }),
+
+                // 2. Cluster Counts (Text)
+                new deck.TextLayer({
+                    id: 'cluster-text',
+                    data: clusterData,
+                    getPosition: d => d.geometry.coordinates,
+                    getText: d => String(d.properties.point_count_abbreviated),
+                    getSize: 14,
+                    sizeUnits: 'pixels',
+                    getColor: [255, 255, 255],
+                    fontWeight: 'bold',
+                    fontFamily: 'sans-serif'
+                }),
+
+                // 3. Single Points Layer
+                new deck.ScatterplotLayer({
+                    id: 'points',
+                    data: pointData,
+                    getPosition: d => d.geometry.coordinates,
+                    getRadius: 8, // Smaller than clusters
+                    radiusUnits: 'pixels',
+                    getFillColor: POINT_COLOR,
+                    getLineColor: [255, 255, 255],
+                    getLineWidth: 2,
+                    lineWidthUnits: 'pixels',
+                    pickable: true,
+                    // HOVER EFFECT ADDED HERE
+                    onHover: ({ object }) => {
+                        map.setOptions({ draggableCursor: object ? 'pointer' : null });
+                    },
+                    // On Click -> Show Side Panel
+                    onClick: ({ object }) => {
+                        showPointDetails(object.properties);
+                    }
+                })
+            ];
+
+            overlay.setProps({ layers });
+        }
+
+        window.addEventListener('load', initMap);
+
+    </script>
+</body>
+
+</html>
