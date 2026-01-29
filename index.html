@@ -1,81 +1,75 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clustered Map</title>
+    <title>Clustered Map - 17k Pins</title>
     <style>
         /* --- Reset & Base --- */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        html,
-        body {
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
             height: 100%;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             overflow: hidden;
         }
 
         /* --- Map Container --- */
-        #map {
-            width: 100%;
-            height: 100%;
-        }
+        #map { width: 100%; height: 100%; }
 
         /* --- Loading Modal --- */
         .modal-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(10, 14, 25, 0.6);
+            position: fixed; inset: 0;
+            background: rgba(10, 14, 25, 0.75);
             backdrop-filter: blur(8px);
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            display: flex; align-items: center; justify-content: center;
             z-index: 9999;
-            transition: opacity 0.3s ease;
+            transition: opacity 0.4s ease;
         }
-
-        .modal-overlay.hidden {
-            opacity: 0;
-            pointer-events: none;
-        }
+        .modal-overlay.hidden { opacity: 0; pointer-events: none; }
 
         .modal-card {
-            background: white;
-            color: #1a202c;
-            padding: 32px 40px;
-            border-radius: 16px;
+            background: white; color: #1a202c;
+            padding: 36px 40px; border-radius: 16px;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            text-align: center;
-            max-width: 340px;
+            text-align: center; width: 380px;
         }
 
-        .spinner {
-            margin: 20px auto 0;
-            width: 40px;
-            height: 40px;
-            border: 3px solid #e2e8f0;
-            border-top-color: #3182ce;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
+        .modal-title { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+        .modal-subtitle { color: #718096; font-size: 14px; margin-bottom: 24px; }
 
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
-            }
+        /* --- Progress Bar --- */
+        .progress-container {
+            width: 100%; height: 6px;
+            background: #e2e8f0;
+            border-radius: 3px;
+            overflow: hidden;
+            position: relative;
+        }
+        .progress-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #4299e1 0%, #3182ce 100%);
+            border-radius: 3px;
+            transition: width 0.2s ease;
+        }
+        .progress-bar.indeterminate {
+            width: 40%;
+            animation: indeterminate 1.5s ease-in-out infinite;
+        }
+        @keyframes indeterminate {
+            0% { transform: translateX(-100%); }
+            50% { transform: translateX(250%); }
+            100% { transform: translateX(-100%); }
+        }
+        .progress-text {
+            font-size: 13px; color: #4a5568;
+            margin-top: 12px; font-weight: 600;
+            min-height: 20px;
         }
 
         /* --- Info Sidebar (Left) --- */
         .info-panel {
-            position: fixed;
-            top: 20px;
-            left: 20px;
-            bottom: 20px;
+            position: fixed; top: 20px; left: 20px; bottom: 20px;
             width: 400px;
             background: white;
             border-radius: 16px;
@@ -83,102 +77,53 @@
             z-index: 1000;
             transform: translateX(-120%);
             transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-            display: flex;
-            flex-direction: column;
+            display: flex; flex-direction: column;
             overflow: hidden;
         }
-
-        .info-panel.open {
-            transform: translateX(0);
-        }
+        .info-panel.open { transform: translateX(0); }
 
         /* Sidebar Header */
         .panel-header {
-            padding: 20px 24px;
-            border-bottom: 1px solid #e2e8f0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            padding: 20px 24px; border-bottom: 1px solid #e2e8f0;
+            display: flex; justify-content: space-between; align-items: center;
             background: #f8fafc;
         }
-
-        .panel-header h2 {
-            font-size: 18px;
-            font-weight: 700;
-            color: #2d3748;
-        }
+        .panel-header h2 { font-size: 18px; font-weight: 700; color: #2d3748; }
 
         .close-btn {
-            background: none;
-            border: none;
-            cursor: pointer;
-            font-size: 24px;
-            color: #a0aec0;
-            line-height: 1;
-            padding: 4px;
-            border-radius: 4px;
+            background: none; border: none; cursor: pointer;
+            font-size: 24px; color: #a0aec0; line-height: 1;
+            padding: 4px; border-radius: 4px;
         }
-
-        .close-btn:hover {
-            color: #4a5568;
-            background: #edf2f7;
-        }
+        .close-btn:hover { color: #4a5568; background: #edf2f7; }
 
         /* Sidebar Content */
-        .panel-content {
-            padding: 0;
-            overflow-y: auto;
-            flex: 1;
-        }
+        .panel-content { padding: 0; overflow-y: auto; flex: 1; }
 
         /* Data Table */
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 14px;
-        }
-
-        .data-table tr {
-            border-bottom: 1px solid #f1f5f9;
-        }
-
+        .data-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        .data-table tr { border-bottom: 1px solid #f1f5f9; }
         .data-table th {
-            text-align: left;
-            padding: 12px 24px;
-            color: #718096;
-            font-weight: 600;
-            width: 35%;
+            text-align: left; padding: 12px 24px;
+            color: #718096; font-weight: 600; width: 35%;
             background: #fff;
         }
-
         .data-table td {
-            text-align: left;
-            padding: 12px 24px;
-            color: #2d3748;
-            font-weight: 500;
+            text-align: left; padding: 12px 24px;
+            color: #2d3748; font-weight: 500;
             word-break: break-word;
         }
-
-        .data-table tr:hover {
-            background: #f8fafc;
-        }
+        .data-table tr:hover { background: #f8fafc; }
 
         /* Mobile Responsive */
         @media (max-width: 600px) {
             .info-panel {
-                top: auto;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                width: 100%;
-                border-radius: 20px 20px 0 0;
-                height: 60vh;
-                transform: translateY(110%);
+                top: auto; left: 0; right: 0; bottom: 0;
+                width: 100%; border-radius: 20px 20px 0 0;
+                height: 60vh; transform: translateY(110%);
             }
-
-            .info-panel.open {
-                transform: translateY(0);
-            }
+            .info-panel.open { transform: translateY(0); }
+            .modal-card { width: 90%; padding: 28px 24px; }
         }
     </style>
 </head>
@@ -188,12 +133,16 @@
     <!-- Map Container -->
     <div id="map"></div>
 
-    <!-- Loading Modal -->
+    <!-- Loading Modal with Progress -->
     <div id="loadingModal" class="modal-overlay">
         <div class="modal-card">
-            <h2 style="font-size: 20px; font-weight: 700;">Loading Map</h2>
-            <p style="color: #718096; margin-top: 8px;">Processing records...</p>
-            <div class="spinner"></div>
+            <div class="modal-title">🗺️ Loading Map</div>
+            <div class="modal-subtitle">Fetching data...</div>
+
+            <div class="progress-container">
+                <div id="progressBar" class="progress-bar"></div>
+            </div>
+            <div id="progressText" class="progress-text">Initializing...</div>
         </div>
     </div>
 
@@ -215,7 +164,6 @@
     <script src="https://unpkg.com/deck.gl@9.0.0/dist.min.js"></script>
     <script src="https://unpkg.com/@deck.gl/google-maps@9.0.0/dist.min.js"></script>
     <script src="https://d3js.org/d3-dsv.v3.min.js"></script>
-    <script src="https://d3js.org/d3-fetch.v3.min.js"></script>
     <script src="https://unpkg.com/supercluster@8.0.1/dist/supercluster.min.js"></script>
 
     <script>
@@ -237,11 +185,9 @@
 
         function showPointDetails(props) {
             const tbody = document.getElementById('dataTable');
-            tbody.innerHTML = ''; // Clear previous
+            tbody.innerHTML = '';
 
-            // Iterate over all CSV columns
             Object.entries(props).forEach(([key, value]) => {
-                // Skip internal properties if any
                 if (key === 'id' && value.startsWith('row-')) return;
 
                 const tr = document.createElement('tr');
@@ -255,20 +201,73 @@
             document.getElementById('infoPanel').classList.add('open');
         }
 
-        // Helper to make CSV headers look nice (e.g. "price_eur" -> "Price Eur")
         function formatKey(str) {
             return str.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
         }
 
-        // --- Data Logic ---
         function parseCoord(val) {
             if (!val) return NaN;
             return parseFloat(String(val).replace(',', '.'));
         }
 
+        // --- Progress Bar Logic ---
+        function setProgress(percent, label, indeterminate = false) {
+            const bar = document.getElementById('progressBar');
+            const text = document.getElementById('progressText');
+
+            if (indeterminate) {
+                bar.classList.add('indeterminate');
+                bar.style.width = '40%';
+            } else {
+                bar.classList.remove('indeterminate');
+                const p = Math.min(100, Math.max(0, Math.floor(percent)));
+                bar.style.width = `${p}%`;
+            }
+
+            text.textContent = label || `${Math.floor(percent)}%`;
+        }
+
+        // --- Data Loading with Fetch + Streams ---
         async function loadData() {
+            const modal = document.getElementById('loadingModal');
+
             try {
-                const data = await d3.csv(CSV_URL);
+                setProgress(0, 'Starting download...');
+
+                const response = await fetch(CSV_URL, { cache: 'no-store' });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const contentLengthHeader = response.headers.get('Content-Length');
+                const totalBytes = contentLengthHeader ? Number(contentLengthHeader) : null;
+
+                const reader = response.body.getReader();
+                let receivedBytes = 0;
+                const chunks = [];
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    chunks.push(value);
+                    receivedBytes += value.length;
+
+                    if (totalBytes) {
+                        const percent = (receivedBytes / totalBytes) * 100;
+                        setProgress(Math.min(99, percent), `${Math.floor(percent)}% downloaded`);
+                    } else {
+                        setProgress(0, `Downloaded ${(receivedBytes / 1024).toFixed(0)} KB`, true);
+                    }
+                }
+
+                setProgress(100, 'Processing CSV...', false);
+
+                const blob = new Blob(chunks);
+                const csvText = await blob.text();
+                const data = d3.csvParse(csvText);
+
+                setProgress(100, `Building ${data.length.toLocaleString()} points...`);
+
+                // Efficient Min/Max calculation for Bounding Box
+                let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
 
                 allPoints = data.map((row, i) => {
                     const lat = parseCoord(row.latitude || row.lat || row.Latitude);
@@ -276,34 +275,58 @@
 
                     if (!isFinite(lat) || !isFinite(lng)) return null;
 
+                    // Update bounds
+                    if (lat < minLat) minLat = lat;
+                    if (lat > maxLat) maxLat = lat;
+                    if (lng < minLng) minLng = lng;
+                    if (lng > maxLng) maxLng = lng;
+
                     return {
                         type: 'Feature',
-                        properties: { ...row }, // Copy all CSV columns
+                        properties: { ...row },
                         geometry: { type: 'Point', coordinates: [lng, lat] }
                     };
                 }).filter(Boolean);
 
                 // Initialize Supercluster
                 supercluster = new Supercluster({
-                    radius: 60, // Cluster radius in pixels
+                    radius: 60,
                     maxZoom: 18
                 });
                 supercluster.load(allPoints);
 
-                document.getElementById('loadingModal').classList.add('hidden');
-                updateMap();
+                // Fit Bounds to Data
+                if (allPoints.length > 0 && map) {
+                    const bounds = new google.maps.LatLngBounds(
+                        { lat: minLat, lng: minLng }, // SW
+                        { lat: maxLat, lng: maxLng }  // NE
+                    );
+                    map.fitBounds(bounds);
+                    
+                    // Optional: Padding to not have pins on the very edge
+                    // map.fitBounds(bounds, 50); // 50px padding (if API supports, otherwise regular fit)
+                }
+
+                // Hide modal and update map
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                    updateMap();
+                }, 400);
 
             } catch (err) {
-                console.error(err);
-                alert("Failed to load CSV data. Check console.");
+                console.error('Load error:', err);
+                setProgress(100, '❌ Failed to load data', false);
+                document.getElementById('progressBar').style.background = '#e53e3e';
+                setTimeout(() => alert('Failed to load CSV. Check console.'), 500);
             }
         }
 
         // --- Map & Deck.gl Logic ---
         function initMap() {
+            // Default center is Kraków, but will be overridden by loadData bounds
             map = new google.maps.Map(document.getElementById('map'), {
-                center: { lat: 38.28362060944916, lng: -99.25592016317214 },
-                zoom: 5,
+                center: { lat: 50.0647, lng: 19.945 },
+                zoom: 11,
                 disableDefaultUI: true,
                 clickableIcons: false,
                 styles: [{ featureType: "poi", stylers: [{ visibility: "off" }] }]
@@ -325,26 +348,21 @@
             const bounds = map.getBounds();
             if (!bounds) return;
 
-            // Get current bbox and zoom
             const sw = bounds.getSouthWest();
             const ne = bounds.getNorthEast();
             const bbox = [sw.lng(), sw.lat(), ne.lng(), ne.lat()];
             const zoom = Math.round(map.getZoom());
 
-            // Get clusters from Supercluster
             const clusters = supercluster.getClusters(bbox, zoom);
-
-            // Split into clusters vs single points
             const clusterData = clusters.filter(f => f.properties.cluster);
             const pointData = clusters.filter(f => !f.properties.cluster);
 
             const layers = [
-                // 1. Clusters Layer (Fixed 40px Size)
+                // Clusters
                 new deck.ScatterplotLayer({
                     id: 'clusters',
                     data: clusterData,
                     getPosition: d => d.geometry.coordinates,
-                    // Fixed radius 20px = 40px diameter
                     getRadius: 20,
                     radiusUnits: 'pixels',
                     getFillColor: CLUSTER_COLOR,
@@ -352,7 +370,6 @@
                     getLineWidth: 3,
                     lineWidthUnits: 'pixels',
                     pickable: true,
-                    // HOVER EFFECT ADDED HERE
                     onHover: ({ object }) => {
                         map.setOptions({ draggableCursor: object ? 'pointer' : null });
                     },
@@ -361,11 +378,11 @@
                         const [lng, lat] = object.geometry.coordinates;
                         map.panTo({ lat, lng });
                         map.setZoom(expansionZoom);
-                        closePanel(); // Close details if zooming a cluster
+                        closePanel();
                     }
                 }),
 
-                // 2. Cluster Counts (Text)
+                // Cluster labels
                 new deck.TextLayer({
                     id: 'cluster-text',
                     data: clusterData,
@@ -378,23 +395,21 @@
                     fontFamily: 'sans-serif'
                 }),
 
-                // 3. Single Points Layer
+                // Individual points
                 new deck.ScatterplotLayer({
                     id: 'points',
                     data: pointData,
                     getPosition: d => d.geometry.coordinates,
-                    getRadius: 8, // Smaller than clusters
+                    getRadius: 8,
                     radiusUnits: 'pixels',
                     getFillColor: POINT_COLOR,
                     getLineColor: [255, 255, 255],
                     getLineWidth: 2,
                     lineWidthUnits: 'pixels',
                     pickable: true,
-                    // HOVER EFFECT ADDED HERE
                     onHover: ({ object }) => {
                         map.setOptions({ draggableCursor: object ? 'pointer' : null });
                     },
-                    // On Click -> Show Side Panel
                     onClick: ({ object }) => {
                         showPointDetails(object.properties);
                     }
@@ -408,5 +423,4 @@
 
     </script>
 </body>
-
 </html>
